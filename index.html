@@ -1388,7 +1388,15 @@ document.addEventListener("pointerlockchange",()=>{
 <script>
 // ================= MODE ROOM (Firebase Firestore) =================
 // ISI dengan konfigurasi dari Firebase Console > Project settings > Your apps > Web app
-const FB_CFG={apiKey:"ISI_API_KEY",authDomain:"ISI_PROJECT.firebaseapp.com",projectId:"ISI_PROJECT_ID",appId:"ISI_APP_ID"};
+const FB_CFG={
+  apiKey: "AIzaSyDFyJeGInVpz5-sgQiCqn6wR0NdAOyXLhg",
+  authDomain: "operasi-garuda.firebaseapp.com",
+  databaseURL: "https://operasi-garuda-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "operasi-garuda",
+  storageBucket: "operasi-garuda.firebasestorage.app",
+  messagingSenderId: "443893893289",
+  appId: "1:443893893289:web:13c9f3f6e108261f7e41b8"
+};
 const MAXP=8;
 let FDB=null,FUID=null;
 const RM={code:null,host:false,room:null,players:[],started:false,finished:false,uR:null,uP:null,tick:null,last:""};
