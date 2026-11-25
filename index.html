@@ -79,7 +79,7 @@ body{touch-action:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:tr
 <div id="ch">+</div><div id="msg"></div><div id="flash"></div><div id="obj"></div><canvas id="rad" width="110" height="110"></canvas><div id="cut"></div><div id="sty"></div><div id="prg"><div id="prgt"></div><div class="bar"><i id="prgb" style="background:#ffb300;width:0"></i></div></div><div id="rlh"></div>
 <button id="shopb" style="display:none">🛒 Toko</button><button id="wsw" style="display:none">🔫 Ganti</button><button id="wv" style="display:none">🚙 Naik</button>
 <div id="tc"><div id="jb"><div id="jk"></div></div><button id="bf">🔥</button><button id="bj" data-l="Lompat">⤒</button><button id="bc" data-l="Jongkok">⬇</button><button id="bp" data-l="Tiarap">🛌</button><button id="bv" data-l="Kamera">👁</button><button id="br" data-l="Reload">⟳</button></div>
-<div id="ov" class="cv splash"><button id="lanjut">LANJUTKAN ▶</button><div class="box">
+<div id="ov" class="cv splash"><button id="lanjut">MASUK ▶</button><div class="box">
  <h2>🦅 Operasi Garuda 3D</h2>
  <p style="font-size:13px;margin:.2em 0 .8em">Misi tiap level: dekati dan bebaskan semua sandera 🧑, jinakkan bom 💣 (level 4–5), lalu kalahkan bos 👑 yang muncul setelah sandera bebas. Ambil 📦 kotak emas, jawab soal, dan naikkan power tembakanmu.</p>
  <input id="nm" placeholder="Nama">
@@ -87,7 +87,8 @@ body{touch-action:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:tr
  <div style="display:flex;gap:8px;margin:6px 0"><button class="g sel" data-g="m">👦 Laki-laki</button><button class="g" data-g="f">👧 Perempuan</button></div>
  <select id="mp"></select>
  <select id="mt"><option value="">Semua materi</option></select>
- <button id="go" style="width:100%">▶ Mulai Main</button>
+ <div style="display:flex;gap:8px"><button id="go" style="flex:1">▶ Mulai Baru</button><button id="cont" style="flex:1;background:#2e7d32;color:#fff">⏩ Lanjutkan</button></div>
+ <button id="rmo" style="width:100%;background:#6a1b9a;color:#fff">👥 Mode Room (Multiplayer)</button>
  <p id="st" style="font-size:12px;color:#aaa"></p>
  <p id="hint" style="font-size:12px;color:#ccc;line-height:1.5">WASD gerak · Mouse arah · Klik tembak · Spasi lompat · C jongkok · Z tiarap (sembunyi di balik batu) · V kamera · M suara · B / Tab toko · Esc jeda · Tembak drum 5× → meledak 💥 (melukai musuh di sekitarnya) · 1–7 / tombol 🔫 ganti senjata (beli di Toko) · E naik/turun kendaraan · R reload (peluru pistol habis → jawab 5 soal, tiap jawaban benar +20 peluru)</p>
 </div></div>
@@ -1102,6 +1103,36 @@ function aqDone(){
 // ---------- voucher (Google Sheet: sheet "voucher", header harga & kode voucher) ----------
 const VAPI="https://script.google.com/macros/s/AKfycbzzY1HxRwPx5KVOCNCBXhCIGZvDGMXUk49r5pwdvO6OXJYQbdd_Q1WtlL7GwwmAasqN/exec"; // Web App voucher
 let VMSG="",VBUSY=0;
+// ---------- simpan & lanjutkan permainan ----------
+const enc=encodeURIComponent,SKEY="og_save_";
+const saveKey=(n,k)=>SKEY+(n+"|"+k).trim().toLowerCase();
+function snapshot(lv){
+ const am={};for(const k in S.am)am[k]={m:S.am[k].m,r:S.am[k].r===Infinity?"inf":S.am[k].r};
+ return {v:1,t:Date.now(),lvl:lv,hp:S.hp,maxhp:S.maxhp,armor:S.armor,pts:S.pts,earned:S.earned,benar:S.benar,pw:S.pw,
+  helm:S.helm?1:0,boots:S.boots?1:0,fast:S.fast?1:0,wp:S.wp,own:S.own,vown:S.vown,vsel:S.vsel==null?null:S.vsel,am,
+  mapel:S.mapel,materi:S.materi||"",gen:GEN};
+}
+async function saveGame(lv){
+ if(S.room)return;
+ const d=JSON.stringify(snapshot(lv));
+ try{localStorage.setItem(saveKey(S.nama,S.kelas),d)}catch(e){}
+ try{
+  const j=await(await ft(VAPI+"?action=simpanGame&nama="+enc(S.nama)+"&kelas="+enc(S.kelas)+"&level="+lv+"&data="+enc(d),15000)).json();
+  toast(j.ok?"💾 Progres tersimpan (Level "+lv+")":"⚠️ Gagal simpan ke server, tersimpan di perangkat");
+ }catch(x){toast("⚠️ Server tidak terjangkau, tersimpan di perangkat")}
+}
+function clearSave(){
+ if(S.room)return;
+ try{localStorage.removeItem(saveKey(S.nama,S.kelas))}catch(e){}
+ fetch(VAPI+"?action=hapusGame&nama="+enc(S.nama)+"&kelas="+enc(S.kelas)).catch(()=>{});
+}
+async function loadGame(nama,kelas){
+ let a=null,b=null;
+ try{const j=await(await ft(VAPI+"?action=muatGame&nama="+enc(nama)+"&kelas="+enc(kelas),15000)).json();if(j.ok&&j.data)a=JSON.parse(j.data)}catch(e){}
+ try{const r=localStorage.getItem(saveKey(nama,kelas));if(r)b=JSON.parse(r)}catch(e){}
+ const s=(a&&b)?((b.t||0)>(a.t||0)?b:a):(a||b);
+ return s&&s.lvl>=1&&s.lvl<=5?s:null;
+}
 const WA="6285150789752";
 function waUrl(){
  const t="Halo, saya ingin membeli voucher Operasi Garuda 3D.\nNama: "+(S.nama||"-")+"\nKelas: "+(S.kelas||"-");
@@ -1247,11 +1278,12 @@ function levelDone(){
  gain(1000*S.lvl);S.hp=Math.min(S.maxhp,S.hp+30);for(const k in S.vown)S.vown[k].hp=VH[k].hp;lvlMenu();
 }
 function lvlMenu(){
- modal(`<h2>✅ Level ${S.lvl} selesai!</h2><p>${BN[S.lvl-1]} kalah. Bonus +${fmt(1000*S.lvl)} poin dan +30 HP.</p><button style="width:100%" onclick="openShop(lvlMenu)">🛒 Buka Toko</button><button style="width:100%" onclick="$('ov').style.display='none';intro(S.lvl+1,()=>{startLevel(S.lvl+1);closeM()})">Lanjut ke Level ${S.lvl+1}</button>`);
+ modal(`<h2>✅ Level ${S.lvl} selesai!</h2><p>${BN[S.lvl-1]} kalah. Bonus +${fmt(1000*S.lvl)} poin dan +30 HP.</p><button style="width:100%" onclick="openShop(lvlMenu)">🛒 Buka Toko</button><button style="width:100%" onclick="saveGame(S.lvl+1);$('ov').style.display='none';intro(S.lvl+1,()=>{startLevel(S.lvl+1);closeM()})">Lanjut ke Level ${S.lvl+1}</button>`);
 }
 function end(win){
- S.run=0;
+ S.run=0;if(win)clearSave();
  modal(`<h2>${win?"🏆 Kamu menang!":"💀 Game over"}</h2><p>Total poin: <b>${fmt(S.earned)}</b> · Level: ${S.lvl} · Soal benar: ${S.benar}</p><div id="lb" style="font-size:13px;line-height:1.6">Menyimpan skor…</div><button style="width:100%" onclick="location.reload()">Main Lagi</button>`);
+ if(S.room){roomEnd(win);return}
  fetch(API+"?action=saveHasil&nama="+encodeURIComponent(S.nama)+"&kelas="+encodeURIComponent(S.kelas)+"&point="+S.earned,{mode:"no-cors"}).catch(()=>{})
  .then(()=>fetch(API+"?action=getHasil")).then(r=>r.json())
  .then(j=>{$("lb").innerHTML="<b>🏆 Top 5</b><br>"+j.data.slice(0,5).map((r,i)=>`${i+1}. ${esc(r.nama)} (${esc(r.kelas)}) — ${r.point}`).join("<br>")})
@@ -1264,15 +1296,35 @@ function bgmSync(){const g=typeof S!=="undefined"&&S&&S.run;BGM.volume=SPK?.12:g
 function bgmStart(){bgmSync();if(BGM.paused)BGM.play().catch(()=>{})}
 setInterval(bgmSync,400);["pointerdown","keydown","touchstart"].forEach(ev=>addEventListener(ev,bgmStart,{passive:true}));
 // ---------- mulai ----------
-$("go").onclick=async()=>{
- const mapel=$("mp").value;$("go").disabled=1;$("st").textContent="Memuat soal dari Google Sheet…";
- S={run:0,modal:1,hp:100,maxhp:100,armor:0,pts:5000,earned:0,benar:0,pw:1,cd:0,ct:12,caw:4,lvl:1,nama:$("nm").value.trim()||"Pemain",kelas:$("kl").value.trim()||"-",mapel,wp:0,own:{0:1},vown:{},vsel:null,vh:0,am:{},rl:0};
- try{const j=await(await ft(API+"?action=getSoal&mapel="+encodeURIComponent(mapel)+"&materi="+encodeURIComponent($("mt").value))).json();Q=(j.data||[]).filter(q=>q.kunci&&q.kunci.length===1&&"ABCD".includes(q.kunci))}catch(x){Q=[]}
+async function boot(sv,nama,kelas,ro){
+ const mapel=sv?sv.mapel:ro?ro.mapel:$("mp").value,materi=sv?sv.materi:ro?ro.materi:$("mt").value;
+ $("go").disabled=1;$("cont").disabled=1;$("st").textContent="Memuat soal dari Google Sheet…";
+ if(sv){
+  GEN=sv.gen||"m";
+  const am={};for(const k in (sv.am||{}))am[k]={m:sv.am[k].m,r:sv.am[k].r==="inf"?Infinity:sv.am[k].r};
+  S={run:0,modal:1,hp:sv.hp,maxhp:sv.maxhp,armor:sv.armor,pts:sv.pts,earned:sv.earned,benar:sv.benar,pw:sv.pw,cd:0,ct:12,caw:4,lvl:sv.lvl,nama,kelas,mapel,materi,
+     wp:sv.wp,own:sv.own,vown:sv.vown||{},vsel:sv.vsel==null?null:sv.vsel,vh:0,am,rl:0,helm:!!sv.helm,boots:!!sv.boots,fast:!!sv.fast};
+ }else{
+  S={run:0,modal:1,hp:100,maxhp:100,armor:0,pts:5000,earned:0,benar:0,pw:1,cd:0,ct:12,caw:4,lvl:1,nama:$("nm").value.trim()||"Pemain",kelas:$("kl").value.trim()||"-",mapel,materi,wp:0,own:{0:1},vown:{},vsel:null,vh:0,am:{},rl:0,room:ro?ro.code:0};
+ }
+ try{const j=await(await ft(API+"?action=getSoal&mapel="+encodeURIComponent(mapel)+"&materi="+encodeURIComponent(materi))).json();Q=(j.data||[]).filter(q=>q.kunci&&q.kunci.length===1&&"ABCD".includes(q.kunci))}catch(x){Q=[]}
  if(!Q.length){Q=QF;alert("Soal dari spreadsheet tidak bisa dimuat (cek koneksi / deploy Apps Script). Memakai soal cadangan.")}
  Q.sort(()=>Math.random()-.5);qi=0;
- if(AV)sc.remove(AV);AV=mkSoldier(GEN==='f');sc.add(AV);equip(0,1);
+ if(AV)sc.remove(AV);AV=mkSoldier(GEN==='f');sc.add(AV);equip(S.wp,1);
  if(TOUCH){$("tc").style.display="block";try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{})}catch(e){}}
- $("shopb").style.display="block";$("wsw").style.display="block";intro(1,()=>{startLevel(1);S.run=1;closeM()});
+ $("shopb").style.display="block";$("wsw").style.display="block";
+ if(S.vsel!==null)$("wv").style.display="block";
+ const lv=S.lvl;intro(lv,()=>{startLevel(lv);S.run=1;closeM()});
+}
+$("go").onclick=()=>boot(null);
+$("cont").onclick=async()=>{
+ const nama=$("nm").value.trim(),kelas=$("kl").value.trim();
+ if(!nama||!kelas){$("st").textContent="Isi Nama dan Kelas yang sama seperti sebelumnya, lalu tekan Lanjutkan.";return}
+ $("cont").disabled=1;$("st").textContent="Mencari data simpanan…";
+ const sv=await loadGame(nama,kelas);
+ $("cont").disabled=0;
+ if(!sv){$("st").textContent="Belum ada data simpanan untuk "+nama+" ("+kelas+"). Tekan Mulai Baru.";return}
+ await boot(sv,nama,kelas);
 };
 addEventListener("keydown",e=>{if(e.target&&e.target.tagName==="INPUT")return;K[e.code]=1;if(/^Digit[1-7]$/.test(e.code)&&S.run&&!S.modal){const i=+e.code[5]-1;if(S.own[i])equip(i)}if(e.code==="KeyR")reload();if(e.code==="KeyV")TP=!TP;if(e.code==="KeyE"&&S.run&&!S.modal)toggleVeh();if(e.code==="Space"&&S.run){e.preventDefault();jump()}if(e.code==="Tab"){e.preventDefault();if(S.run&&!S.modal)openShop(closeM)}if(e.code==="KeyM"){MUTE=!MUTE;toast(MUTE?"🔇 Suara mati":"🔊 Suara hidup")}if(e.code==="KeyB"&&S.run&&!S.modal)openShop(closeM)});
 addEventListener("keyup",e=>K[e.code]=0);
@@ -1321,4 +1373,158 @@ addEventListener("mouseup",()=>S.fire=0);
 document.addEventListener("pointerlockchange",()=>{
  if(!document.pointerLockElement&&!NL&&S.run&&!S.modal)modal('<h2>⏸ Jeda</h2><button style="width:100%" onclick="closeM()">Lanjut</button><button style="width:100%" onclick="openShop(closeM)">🛒 Toko</button>');
 });
-</script></body></html>
+</script>
+<style>
+#rm{display:none;position:fixed;inset:0;z-index:80;background:rgba(5,5,12,.88);align-items:center;justify-content:center}
+#rb{display:none;position:fixed;right:12px;top:285px;width:176px;z-index:6;pointer-events:none;font-size:12px;line-height:1.5;background:#000a;border:2px solid #fff6;border-radius:6px;padding:6px 8px;text-shadow:0 1px 2px #000}
+#rb b.me{color:#ffd54f}
+.rp{display:flex;justify-content:space-between;gap:8px;padding:5px 8px;margin:3px 0;background:#2d3250;border-radius:4px;font-size:14px}
+</style>
+<div id="rm"><div class="box" id="rmb"></div></div>
+<div id="rb"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+// ================= MODE ROOM (Firebase Firestore) =================
+// ISI dengan konfigurasi dari Firebase Console > Project settings > Your apps > Web app
+const FB_CFG={apiKey:"ISI_API_KEY",authDomain:"ISI_PROJECT.firebaseapp.com",projectId:"ISI_PROJECT_ID",appId:"ISI_APP_ID"};
+const MAXP=8;
+let FDB=null,FUID=null;
+const RM={code:null,host:false,room:null,players:[],started:false,finished:false,uR:null,uP:null,tick:null,last:""};
+const TS=()=>firebase.firestore.FieldValue.serverTimestamp();
+const rref=()=>FDB.collection("rooms").doc(RM.code);
+const pref=()=>rref().collection("players").doc(FUID);
+
+async function fbInit(){
+ if(FDB)return true;
+ if(!window.firebase||FB_CFG.apiKey.indexOf("ISI")===0){rmMsg("⚠️ Firebase belum dikonfigurasi. Isi FB_CFG di bagian MODE ROOM pada HTML.");return false}
+ try{
+  firebase.initializeApp(FB_CFG);
+  const c=await firebase.auth().signInAnonymously();
+  FUID=c.user.uid;FDB=firebase.firestore();return true;
+ }catch(e){rmMsg("⚠️ Gagal terhubung ke Firebase: "+(e.code||e.message)+" (pastikan Anonymous Auth aktif)");return false}
+}
+function rmMsg(t){const s=$("rms");if(s)s.textContent=t;else $("st").textContent=t}
+function rmShow(h){$("rmb").innerHTML=h;$("rm").style.display="flex"}
+function genCode(){const a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let c="";for(let i=0;i<5;i++)c+=a[Math.floor(Math.random()*a.length)];return c}
+function me(){return{nama:$("nm").value.trim().slice(0,30),kelas:$("kl").value.trim().slice(0,20)}}
+
+function rmMenu(){
+ rmShow(`<h2>👥 Mode Room</h2><p style="font-size:13px;color:#ccc;margin:.2em 0 .8em">Main bersama teman di room yang sama: soal & level sama, papan skor tampil langsung (realtime). Siapa yang poinnya tertinggi menang.</p>
+ <button id="rmc" style="width:100%">➕ Buat Room Baru</button>
+ <div style="display:flex;gap:8px;margin-top:6px"><input id="rmk" placeholder="Kode room" maxlength="5" autocomplete="off" style="text-transform:uppercase;flex:1;margin:4px 0"><button id="rmj">Gabung</button></div>
+ <p id="rms" style="font-size:13px;color:#ffab91;min-height:16px"></p>
+ <button id="rmx" style="width:100%;background:#2d3250;color:#fff">Tutup</button>`);
+ $("rmc").onclick=rmCreate;$("rmj").onclick=rmJoin;$("rmx").onclick=()=>$("rm").style.display="none";
+ $("rmk").onkeydown=e=>{if(e.key==="Enter")rmJoin()};
+}
+function playerDoc(m){return{uid:FUID,nama:m.nama,kelas:m.kelas,gen:GEN,pts:0,lvl:1,hp:100,benar:0,done:false,win:false,joinedAt:TS(),updatedAt:TS()}}
+
+async function rmCreate(){
+ const m=me();$("rmc").disabled=1;rmMsg("Membuat room…");
+ if(!await fbInit()){$("rmc").disabled=0;return}
+ for(let i=0;i<4;i++){
+  const code=genCode();RM.code=code;
+  try{
+   await rref().set({code,hostUid:FUID,hostName:m.nama,status:"lobby",mapel:$("mp").value||"-",materi:$("mt").value||"",createdAt:TS()});
+   await pref().set(playerDoc(m));
+   rmListen();return;
+  }catch(e){RM.code=null;if(i===3){rmMsg("❌ Gagal membuat room: "+(e.code||e.message));$("rmc").disabled=0}}
+ }
+}
+async function rmJoin(){
+ const m=me(),code=($("rmk").value||"").trim().toUpperCase();
+ if(code.length!==5){rmMsg("Kode room terdiri dari 5 karakter.");return}
+ $("rmj").disabled=1;rmMsg("Mencari room…");
+ if(!await fbInit()){$("rmj").disabled=0;return}
+ RM.code=code;
+ try{
+  const s=await rref().get();
+  if(!s.exists){RM.code=null;rmMsg("❌ Room tidak ditemukan.");$("rmj").disabled=0;return}
+  if(s.data().status!=="lobby"){RM.code=null;rmMsg("❌ Room sudah dimulai / selesai.");$("rmj").disabled=0;return}
+  const ps=await rref().collection("players").get();
+  if(ps.size>=MAXP&&!ps.docs.some(d=>d.id===FUID)){RM.code=null;rmMsg("❌ Room penuh (maks "+MAXP+" pemain).");$("rmj").disabled=0;return}
+  await pref().set(playerDoc(m));
+  rmListen();
+ }catch(e){RM.code=null;rmMsg("❌ Gagal bergabung: "+(e.code||e.message));$("rmj").disabled=0}
+}
+function rmListen(){
+ RM.started=false;RM.finished=false;
+ RM.uR=rref().onSnapshot(s=>{
+  if(!s.exists){if(!RM.started){rmUnsub();rmMenu();rmMsg("Room dibubarkan oleh host.")}return}
+  RM.room=s.data();RM.host=RM.room.hostUid===FUID;
+  if(RM.room.status==="playing"&&!RM.started)rmStart();
+  rmLobby();
+ },e=>rmMsg("⚠️ Koneksi room terputus: "+(e.code||e.message)));
+ RM.uP=rref().collection("players").onSnapshot(s=>{
+  RM.players=s.docs.map(d=>d.data());
+  rmLobby();rmBoard();rmHostCheck();
+ });
+}
+function rmUnsub(){try{RM.uR&&RM.uR()}catch(e){}try{RM.uP&&RM.uP()}catch(e){}RM.uR=RM.uP=null;clearInterval(RM.tick);RM.code=null;RM.room=null;RM.players=[]}
+
+function rmLobby(){
+ if(RM.started||!RM.room||$("rm").style.display==="none"&&RM.code===null)return;
+ const r=RM.room,list=RM.players.slice().sort((a,b)=>(a.joinedAt&&b.joinedAt?a.joinedAt.seconds-b.joinedAt.seconds:0));
+ rmShow(`<h2>👥 Room <span style="letter-spacing:4px;background:#000;padding:2px 10px;border-radius:4px">${esc(RM.code)}</span></h2>
+ <p style="font-size:13px;color:#ccc;margin:.2em 0 .6em">Bagikan kode ini ke temanmu. Mapel: <b>${esc(r.mapel)}</b>${r.materi?" · "+esc(r.materi):""}</p>
+ <div>${list.map(p=>`<div class="rp"><span>${p.uid===r.hostUid?"👑 ":"🎮 "}${esc(p.nama)} <small style="color:#aaa">(${esc(p.kelas)})</small></span><span>${p.uid===FUID?"kamu":""}</span></div>`).join("")}</div>
+ <p style="font-size:12px;color:#aaa">${list.length} / ${MAXP} pemain</p>
+ ${RM.host?`<button id="rmgo" style="width:100%">▶ Mulai Game</button>`:`<p style="text-align:center;color:#ffd54f">⏳ Menunggu host memulai…</p>`}
+ <p id="rms" style="font-size:13px;color:#ffab91;min-height:16px"></p>
+ <button id="rmlv" style="width:100%;background:#2d3250;color:#fff">Keluar Room</button>`);
+ if($("rmgo"))$("rmgo").onclick=async()=>{$("rmgo").disabled=1;try{await rref().update({status:"playing",startAt:TS()})}catch(e){rmMsg("❌ Gagal memulai: "+(e.code||e.message));$("rmgo").disabled=0}};
+ $("rmlv").onclick=rmLeave;
+}
+async function rmLeave(){
+ const host=RM.host;
+ try{
+  if(host){const ps=await rref().collection("players").get();const b=FDB.batch();ps.docs.forEach(d=>b.delete(d.ref));await b.commit();await rref().delete()}
+  else await pref().delete();
+ }catch(e){}
+ rmUnsub();rmMenu();
+}
+
+function rmStart(){
+ RM.started=true;$("rm").style.display="none";
+ const r=RM.room;
+ boot(null,null,null,{mapel:r.mapel,materi:r.materi==="-"?"":r.materi,code:RM.code});
+ $("rb").style.display="block";
+ RM.tick=setInterval(()=>rmPush(false),5000);
+}
+function rmPush(force){
+ if(!RM.started||RM.finished||typeof S==="undefined"||!S.nama||!S.room)return;
+ const d={pts:Math.round(S.earned||0),lvl:S.lvl||1,hp:Math.max(0,Math.round(S.hp||0)),benar:S.benar||0};
+ const k=JSON.stringify(d);if(k===RM.last&&!force)return;RM.last=k;
+ pref().update(Object.assign(d,{updatedAt:TS()})).catch(()=>{});
+}
+function sorted(){return RM.players.slice().sort((a,b)=>b.pts-a.pts||b.lvl-a.lvl)}
+function tag(p){return p.done?(p.win?"🏆":"💀"):"L"+p.lvl}
+function rmBoard(){
+ if(!RM.started)return;
+ const l=sorted();
+ $("rb").innerHTML="<b>👥 Room "+esc(RM.code)+"</b><br>"+l.slice(0,6).map((p,i)=>`<div>${i+1}. ${p.uid===FUID?'<b class="me">':"<b>"}${esc(p.nama)}</b> · ${tag(p)} · ${fmt(p.pts)}</div>`).join("");
+ if($("lb")&&RM.finished)rmRank();
+}
+function rmRank(){
+ $("lb").innerHTML="<b>👥 Peringkat Room "+esc(RM.code)+"</b><br>"+sorted().map((p,i)=>`${i+1}. ${p.uid===FUID?"<b>":""}${esc(p.nama)} (${esc(p.kelas)}) — ${fmt(p.pts)} ${p.done?(p.win?"🏆 tamat":"💀 gugur"):"🎮 L"+p.lvl+" (bermain)"}${p.uid===FUID?"</b>":""}`).join("<br>");
+}
+function rmHostCheck(){
+ if(!RM.host||!RM.room||RM.room.status!=="playing"||!RM.players.length)return;
+ if(RM.players.every(p=>p.done))rref().update({status:"finished",finishedAt:TS()}).catch(()=>{});
+}
+async function roomEnd(win){
+ RM.finished=true;clearInterval(RM.tick);
+ fetch(API+"?action=saveHasil&nama="+encodeURIComponent(S.nama)+"&kelas="+encodeURIComponent(S.kelas)+"&point="+S.earned,{mode:"no-cors"}).catch(()=>{});
+ try{await pref().update({pts:Math.round(S.earned||0),lvl:S.lvl||1,hp:Math.max(0,Math.round(S.hp||0)),benar:S.benar||0,done:true,win:!!win,updatedAt:TS()})}catch(e){}
+ if($("lb"))rmRank();
+}
+
+$("rmo").onclick=()=>{
+ const m=me();
+ if(!m.nama||!m.kelas){$("st").textContent="Isi Nama dan Kelas dulu sebelum masuk Mode Room.";return}
+ if(RM.code&&!RM.started)rmLobby();else rmMenu();
+};
+</script>
+</body></html>
