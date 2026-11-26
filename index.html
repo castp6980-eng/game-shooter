@@ -1384,33 +1384,32 @@ document.addEventListener("pointerlockchange",()=>{
 <div id="rb"></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
-// ================= MODE ROOM (Firebase Firestore) =================
-// ISI dengan konfigurasi dari Firebase Console > Project settings > Your apps > Web app
+// ================= MODE ROOM (Firebase Realtime Database) =================
 const FB_CFG={
-  apiKey: "AIzaSyDFyJeGInVpz5-sgQiCqn6wR0NdAOyXLhg",
-  authDomain: "operasi-garuda.firebaseapp.com",
-  databaseURL: "https://operasi-garuda-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "operasi-garuda",
-  storageBucket: "operasi-garuda.firebasestorage.app",
-  messagingSenderId: "443893893289",
-  appId: "1:443893893289:web:13c9f3f6e108261f7e41b8"
+  apiKey:"AIzaSyDFyJeGInVpz5-sgQiCqn6wR0NdAOyXLhg",
+  authDomain:"operasi-garuda.firebaseapp.com",
+  databaseURL:"https://operasi-garuda-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"operasi-garuda",
+  storageBucket:"operasi-garuda.firebasestorage.app",
+  messagingSenderId:"443893893289",
+  appId:"1:443893893289:web:13c9f3f6e108261f7e41b8"
 };
 const MAXP=8;
 let FDB=null,FUID=null;
-const RM={code:null,host:false,room:null,players:[],started:false,finished:false,uR:null,uP:null,tick:null,last:""};
-const TS=()=>firebase.firestore.FieldValue.serverTimestamp();
-const rref=()=>FDB.collection("rooms").doc(RM.code);
-const pref=()=>rref().collection("players").doc(FUID);
+const RM={code:null,host:false,room:null,players:[],started:false,finished:false,ref:null,cb:null,tick:null,last:""};
+const TS=()=>firebase.database.ServerValue.TIMESTAMP;
+const rref=()=>FDB.ref("rooms/"+RM.code);
+const pref=()=>FDB.ref("rooms/"+RM.code+"/players/"+FUID);
 
 async function fbInit(){
  if(FDB)return true;
- if(!window.firebase||FB_CFG.apiKey.indexOf("ISI")===0){rmMsg("⚠️ Firebase belum dikonfigurasi. Isi FB_CFG di bagian MODE ROOM pada HTML.");return false}
+ if(!window.firebase||!FB_CFG.apiKey||!FB_CFG.databaseURL){rmMsg("⚠️ Firebase belum dikonfigurasi. Periksa FB_CFG di bagian MODE ROOM pada HTML.");return false}
  try{
-  firebase.initializeApp(FB_CFG);
+  if(!firebase.apps.length)firebase.initializeApp(FB_CFG);
   const c=await firebase.auth().signInAnonymously();
-  FUID=c.user.uid;FDB=firebase.firestore();return true;
+  FUID=c.user.uid;FDB=firebase.database();return true;
  }catch(e){rmMsg("⚠️ Gagal terhubung ke Firebase: "+(e.code||e.message)+" (pastikan Anonymous Auth aktif)");return false}
 }
 function rmMsg(t){const s=$("rms");if(s)s.textContent=t;else $("st").textContent=t}
@@ -1427,7 +1426,7 @@ function rmMenu(){
  $("rmc").onclick=rmCreate;$("rmj").onclick=rmJoin;$("rmx").onclick=()=>$("rm").style.display="none";
  $("rmk").onkeydown=e=>{if(e.key==="Enter")rmJoin()};
 }
-function playerDoc(m){return{uid:FUID,nama:m.nama,kelas:m.kelas,gen:GEN,pts:0,lvl:1,hp:100,benar:0,done:false,win:false,joinedAt:TS(),updatedAt:TS()}}
+function playerDoc(m){return{uid:FUID,nama:m.nama,kelas:m.kelas,gen:GEN==="f"?"f":"m",pts:0,lvl:1,hp:100,benar:0,done:false,win:false,joinedAt:TS(),updatedAt:TS()}}
 
 async function rmCreate(){
  const m=me();$("rmc").disabled=1;rmMsg("Membuat room…");
@@ -1435,7 +1434,7 @@ async function rmCreate(){
  for(let i=0;i<4;i++){
   const code=genCode();RM.code=code;
   try{
-   await rref().set({code,hostUid:FUID,hostName:m.nama,status:"lobby",mapel:$("mp").value||"-",materi:$("mt").value||"",createdAt:TS()});
+   await rref().set({code,hostUid:FUID,hostName:m.nama,status:"lobby",mapel:($("mp").value||"-").slice(0,80),materi:($("mt").value||"").slice(0,120),createdAt:TS()});
    await pref().set(playerDoc(m));
    rmListen();return;
   }catch(e){RM.code=null;if(i===3){rmMsg("❌ Gagal membuat room: "+(e.code||e.message));$("rmc").disabled=0}}
@@ -1448,33 +1447,32 @@ async function rmJoin(){
  if(!await fbInit()){$("rmj").disabled=0;return}
  RM.code=code;
  try{
-  const s=await rref().get();
-  if(!s.exists){RM.code=null;rmMsg("❌ Room tidak ditemukan.");$("rmj").disabled=0;return}
-  if(s.data().status!=="lobby"){RM.code=null;rmMsg("❌ Room sudah dimulai / selesai.");$("rmj").disabled=0;return}
-  const ps=await rref().collection("players").get();
-  if(ps.size>=MAXP&&!ps.docs.some(d=>d.id===FUID)){RM.code=null;rmMsg("❌ Room penuh (maks "+MAXP+" pemain).");$("rmj").disabled=0;return}
+  const s=await rref().once("value");
+  if(!s.exists()){RM.code=null;rmMsg("❌ Room tidak ditemukan.");$("rmj").disabled=0;return}
+  if(s.val().status!=="lobby"){RM.code=null;rmMsg("❌ Room sudah dimulai / selesai.");$("rmj").disabled=0;return}
+  const ps=s.child("players");
+  if(ps.numChildren()>=MAXP&&!ps.child(FUID).exists()){RM.code=null;rmMsg("❌ Room penuh (maks "+MAXP+" pemain).");$("rmj").disabled=0;return}
   await pref().set(playerDoc(m));
   rmListen();
  }catch(e){RM.code=null;rmMsg("❌ Gagal bergabung: "+(e.code||e.message));$("rmj").disabled=0}
 }
 function rmListen(){
  RM.started=false;RM.finished=false;
- RM.uR=rref().onSnapshot(s=>{
-  if(!s.exists){if(!RM.started){rmUnsub();rmMenu();rmMsg("Room dibubarkan oleh host.")}return}
-  RM.room=s.data();RM.host=RM.room.hostUid===FUID;
-  if(RM.room.status==="playing"&&!RM.started)rmStart();
-  rmLobby();
- },e=>rmMsg("⚠️ Koneksi room terputus: "+(e.code||e.message)));
- RM.uP=rref().collection("players").onSnapshot(s=>{
-  RM.players=s.docs.map(d=>d.data());
+ RM.ref=rref();
+ RM.cb=RM.ref.on("value",s=>{
+  if(!s.exists()){if(!RM.started){rmUnsub();rmMenu();rmMsg("Room dibubarkan oleh host.")}return}
+  const v=s.val();
+  RM.room=v;RM.host=v.hostUid===FUID;
+  RM.players=Object.values(v.players||{});
+  if(v.status==="playing"&&!RM.started)rmStart();
   rmLobby();rmBoard();rmHostCheck();
- });
+ },e=>rmMsg("⚠️ Koneksi room terputus: "+(e.code||e.message)));
 }
-function rmUnsub(){try{RM.uR&&RM.uR()}catch(e){}try{RM.uP&&RM.uP()}catch(e){}RM.uR=RM.uP=null;clearInterval(RM.tick);RM.code=null;RM.room=null;RM.players=[]}
+function rmUnsub(){try{RM.ref&&RM.cb&&RM.ref.off("value",RM.cb)}catch(e){}RM.ref=RM.cb=null;clearInterval(RM.tick);RM.code=null;RM.room=null;RM.players=[]}
 
 function rmLobby(){
  if(RM.started||!RM.room||$("rm").style.display==="none"&&RM.code===null)return;
- const r=RM.room,list=RM.players.slice().sort((a,b)=>(a.joinedAt&&b.joinedAt?a.joinedAt.seconds-b.joinedAt.seconds:0));
+ const r=RM.room,list=RM.players.slice().sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0));
  rmShow(`<h2>👥 Room <span style="letter-spacing:4px;background:#000;padding:2px 10px;border-radius:4px">${esc(RM.code)}</span></h2>
  <p style="font-size:13px;color:#ccc;margin:.2em 0 .6em">Bagikan kode ini ke temanmu. Mapel: <b>${esc(r.mapel)}</b>${r.materi?" · "+esc(r.materi):""}</p>
  <div>${list.map(p=>`<div class="rp"><span>${p.uid===r.hostUid?"👑 ":"🎮 "}${esc(p.nama)} <small style="color:#aaa">(${esc(p.kelas)})</small></span><span>${p.uid===FUID?"kamu":""}</span></div>`).join("")}</div>
@@ -1488,8 +1486,8 @@ function rmLobby(){
 async function rmLeave(){
  const host=RM.host;
  try{
-  if(host){const ps=await rref().collection("players").get();const b=FDB.batch();ps.docs.forEach(d=>b.delete(d.ref));await b.commit();await rref().delete()}
-  else await pref().delete();
+  if(host)await rref().remove();
+  else await pref().remove();
  }catch(e){}
  rmUnsub();rmMenu();
 }
@@ -1503,7 +1501,7 @@ function rmStart(){
 }
 function rmPush(force){
  if(!RM.started||RM.finished||typeof S==="undefined"||!S.nama||!S.room)return;
- const d={pts:Math.round(S.earned||0),lvl:S.lvl||1,hp:Math.max(0,Math.round(S.hp||0)),benar:S.benar||0};
+ const d={pts:Math.max(0,Math.round(S.earned||0)),lvl:Math.min(5,Math.max(1,S.lvl||1)),hp:Math.min(2000,Math.max(0,Math.round(S.hp||0))),benar:S.benar||0};
  const k=JSON.stringify(d);if(k===RM.last&&!force)return;RM.last=k;
  pref().update(Object.assign(d,{updatedAt:TS()})).catch(()=>{});
 }
@@ -1525,7 +1523,7 @@ function rmHostCheck(){
 async function roomEnd(win){
  RM.finished=true;clearInterval(RM.tick);
  fetch(API+"?action=saveHasil&nama="+encodeURIComponent(S.nama)+"&kelas="+encodeURIComponent(S.kelas)+"&point="+S.earned,{mode:"no-cors"}).catch(()=>{});
- try{await pref().update({pts:Math.round(S.earned||0),lvl:S.lvl||1,hp:Math.max(0,Math.round(S.hp||0)),benar:S.benar||0,done:true,win:!!win,updatedAt:TS()})}catch(e){}
+ try{await pref().update({pts:Math.max(0,Math.round(S.earned||0)),lvl:Math.min(5,Math.max(1,S.lvl||1)),hp:Math.min(2000,Math.max(0,Math.round(S.hp||0))),benar:S.benar||0,done:true,win:!!win,updatedAt:TS()})}catch(e){}
  if($("lb"))rmRank();
 }
 
